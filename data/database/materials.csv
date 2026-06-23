@@ -1,0 +1,54 @@
+material_id,material_group,formula,elements,n_elements,target_material,morphology,morphology_reported,phase_or_structure
+mat_116477fbbb69be,Ag,Ag,Ag,1,Fe3O4–Ag hybrid submicrospheres,nanoparticle,Hybrid submicrospheres decorated with Ag nanoparticles,Magnetite submicrosphere core with surface-assembled Ag nanoparticles
+mat_29dad4072d3495,Ag,Ag,Ag,1,Seed-grown silver nanoparticles for a plasmonic DSSC monolayer,nanoparticle,Nanoparticles,Colloidal Ag nanoparticles
+mat_7849a91836b5ff,Ag,Ag,Ag,1,Shape-controlled Ag nanoparticles and Ag nanoplates,nanoparticle,Ag nanoparticle,Ag nanoparticles and two-dimensional Ag nanoplates
+mat_534badba603c3d,Ag,Ag,Ag,1,PVP-capped silver nanoparticles used as cores for AgNPs@MnO2,nanoparticle,Nanoparticles,Uniform PVP-capped Ag nanoparticles
+mat_5776c97c80c3f3,Ag,Ag,Ag,1,Closely packed silver nanoparticles grown directly on a silanized tapered optical fiber,nanoparticle,Closely packed nanoparticles,Face-centered-cubic Ag nanoparticle layer on a tapered silica fiber
+mat_14c4253f5fe91c,Ag,Ag,Ag,1,PVP-coated silver nanoparticles for conductive ink,nanoparticle,Nanoparticles,PVP-coated Ag nanoparticles
+mat_23babe8d5a91b7,Ag,Ag,Ag,1,BSA-stabilized silver nanoparticles,nanoparticle,"Larger, more anisotropic nanoparticles",BSA-capped crystalline Ag nanoparticles
+mat_5b796c398cd61b,Ag,Ag,Ag,1,Thiol-functionalized PCL-stabilized silver nanoparticles,nanoparticle,Nanoparticles,Polymer-protected Ag nanoparticles
+mat_99ab3c28b05302,Ag,Ag,Ag,1,Silver nanoparticles and Ag/hydroxyapatite nanocomposite spheres,nanoparticle,Silver nanoparticles; nanocomposite spheres,Pure silver nanoparticles electrostatically loaded on hydroxyapatite nanoribbon spherulites
+mat_0d6e3437f7d748,Ag,Ag,Ag,1,Shape-controlled Ag nanoparticles and Ag nanoplates,nanoplate,Ag nanoplate,Ag nanoparticles and two-dimensional Ag nanoplates
+mat_aa0929caaf7f17,Ag,Ag,Ag,1,Single-crystal silver nanoplatelets,nanoplate,Nanoplatelets,Single-crystal face-centered-cubic Ag nanoplatelets exposing {111} basal facets
+mat_d0427708949621,Ag,Ag,Ag,1,Large silver nanoplates,nanoplate,Triangular and hexagonal nanoplates,Thin triangular or hexagonal Ag nanoplates
+mat_d9d64700d09288,Ag,Ag,Ag,1,Silver nanoplates grown directly on a tapered optical-fiber tip,nanoplate,Nanoplates,Silver nanoplates supported on tapered multimode silica fiber
+mat_9df4bda922a90f,Ag,Ag,Ag,1,Ag nanospheres supported on ZnO nanorods,nanorod,Ag nanospheres supported on ZnO nanorods,Ag nanoparticles deposited on wurtzite ZnO nanorods
+mat_54721ad036714a,Ag,Ag,Ag,1,Silver nanostructures with controlled morphology,nanorod,nanorod,"Ag nanospheres, polygonal nanospheres, nanorods, and truncated triangular nanoplates"
+mat_16ae0f2cd035fa,Ag,Ag,Ag,1,Uniform silver nanospheres,nanosphere,Nanospheres,Uniform face-centered cubic silver nanospheres
+mat_a262a92e19a379,Ag,Ag,Ag,1,Silver nanospheres used as sacrificial templates for hollow gold nanoshells,nanosphere,Nanospheres,Colloidal Ag nanospheres
+mat_9e87aa43d6311e,Ag,Ag,Ag,1,Size-controlled silver nanoparticles for metal-enhanced upconversion luminescence,nanosphere,Nanospheres,Crystalline Ag nanoparticles
+mat_1f2004c870e234,Ag,Ag,Ag,1,BSA-stabilized silver nanoparticles,nanosphere,"Smaller, mainly spherical nanoparticles",BSA-capped crystalline Ag nanoparticles
+mat_7d5353face1cbf,Ag,Ag,Ag,1,Highly dispersed spherical silver nanoparticles,nanosphere,Spherical nanoparticles,Face-centered cubic silver nanoparticles
+mat_0b300b34f1818e,Ag,Ag,Ag,1,Silver nanostructures with controlled morphology,nanosphere,polygonal nanosphere,"Ag nanospheres, polygonal nanospheres, nanorods, and truncated triangular nanoplates"
+mat_ea7acd788810b8,Ag,Ag,Ag,1,Shape-controlled silver nanoparticles,nanotriangle,"Nanospheres, nanotriangles, nanorods, and nanocubes",Single-crystalline face-centered cubic silver
+mat_4a916f77b0f984,Ag,Ag,Ag,1,Silver nanostructures with controlled morphology,nanotriangle,truncated triangle,"Ag nanospheres, polygonal nanospheres, nanorods, and truncated triangular nanoplates"
+mat_484a82d616464e,Ag,Ag,Ag,1,Silver nanowires used as the scaffold for an Ag@PPy sponge,nanowire,Nanowires,Ag nanowires subsequently coated with polypyrrole
+mat_3801883f89571b,Ag,Ag,Ag,1,"Very-long, thin silver nanowires",nanowire,"Very-long, thin nanowires",Face-centered cubic silver nanowires
+mat_0d3f311789ea4d,Ag,Ag,Ag,1,Silver nanowires used as a core for Ag NWs–CdS–Au photocatalyst,nanowire,Nanowires,Face-centered-cubic Ag nanowires
+mat_d79eaf9809561d,Ag,Ag,Ag,1,Multicrystalline silver nanowires used as templates for Ag/AgBr necklace-like heterostructures,nanowire,Nanowires,"Cubic, multicrystalline Ag nanowires"
+mat_f11d73bfbe1158,Ag,Ag,Ag,1,Twin-crystalline silver nanowires used as templates for Pt nanotubes,nanowire,Nanowires,Twin-crystalline Ag nanowires
+mat_d0ee77ec25e37e,Ag,Ag,Ag,1,"Very-long, thin silver nanowires",nanowire,"Very-long, thin nanowires",Face-centered cubic silver nanowires with preferred [111] orientation
+mat_7092fc5a36d3e6,Ag,Ag,Ag,1,Silver nanowires used to form PPy/Ag coaxial nanowire aero-sponges,nanowire,Nanowires,Silver nanowires subsequently conformally coated with polypyrrole
+mat_cb752d5d60f676,Ag,Ag,Ag,1,Silver nanowires used as templates for Ag–AgCl/PPy nanocomposites,nanowire,Nanowires,Ag nanowires subsequently partially converted to AgCl within PPy
+mat_48846a9d487fed,Ag,Ag,Ag,1,Silver nanowires and ordered silver nanowire arrays,nanowire,Nanowires,Ag nanowires assembled into radially aligned arrays
+mat_31db81f9527ca3,Cu,"Cu(In,Al)S2",Al;Cu;In;S,4,"Cu(In,Al)S2 films prepared from CuO, In2O3 and Al2O3 oxide precursor particles",film,CIAS films composed of closely packed particles with voids and a sandwich structure; glass substrate/intermediate small-grained layer/top large-grained layer,single chalcopyrite CIAS film; precursor includes single-phase CuO particles
+mat_0409c62b318ce1,Cu,Cu1-xFexO,Cu;Fe;O,3,pure CuO and Fe-doped CuO nanorods,nanorod,nanorods,monoclinic CuO phase; Fe incorporated/substituted into CuO lattice
+mat_cdc7ed4104c67e,Cu,CuO,Cu;O,2,CuO nanostructures,nanoparticle,flake-like CuO nanoparticles,review article covering multiple CuO nanostructures
+mat_f7e8b847c40377,Cu,CuO,Cu;O,2,undoped and Cd-doped CuO nanoflakes / nanoparticles,nanoparticle,nanoflakes; paper also describes products as nanoparticles in the synthesis section,monoclinic CuO
+mat_381fc9552c1b21,Cu,CuO,Cu;O,2,cupric oxide nanoparticles,nanoparticle,nanoparticles,cupric oxide
+mat_ff8c71b2aaec89,Cu,CuO,Cu;O,2,carambola-like CuO film on copper substrate; STA-modified CuO film,nanopetal,carambola-like CuO film composed of nanopetals,monoclinic CuO film
+mat_21c83d467a364c,Cu,CuO,Cu;O,2,CuO single-crystal nanoplatelets with exposed {001} facets; comparison CuO nanoparticles,nanoplate,nanoplatelets; comparison nanoparticles,monoclinic CuO; single-crystal nanoplatelets with exposed {001} facets
+mat_0f4ea13ff65e1b,Cu,CuO,Cu;O,2,CuO nanoparticles; CuO nanoplatelets; CuO nanorods,nanoplate,nanoparticles; nanoplatelets; nanorods,CuO
+mat_7bcbf89992f71c,Cu,CuO,Cu;O,2,CuO nanoshuttles; porous CuO nanoparticles; CuO nanodisks,nanoplate,nanoshuttles; platelet-like porous nanoparticles; nanodisks,monoclinic CuO; Cu(OH)2 precursor thermally dehydrated to CuO
+mat_47f8ff1eb66cfb,Cu,CuO,Cu;O,2,CuO nanostructures,nanorod,CuO nanotubes / nanorods,review article covering multiple CuO nanostructures
+mat_0f3a5e8d573101,Cu,CuO,Cu;O,2,CuO nanorods,nanorod,nanorods,monoclinic CuO
+mat_19fa6a9b23d007,Cu,CuO,Cu;O,2,CuO nanosheet arrays on nickel foam,nanosheet,nanosheet arrays forming a uniform film on nickel foam,monoclinic CuO nanosheets grown as arrays on nickel foam
+mat_82bb76bf6195e7,Cu,CuO,Cu;O,2,CuO nanosheets,nanosheet,nanosheets; randomly grown sheet-like morphology,monoclinic CuO
+mat_6068ae8a4cc9c5,Cu,CuO,Cu;O,2,CuO nanosheets and CuO nanoparticles,nanosheet,leaflike nanosheets; nanoparticles as comparison sample,monoclinic CuO nanosheets after calcination; nanoparticle control also CuO
+mat_ceec7bf440da73,Cu,CuO,Cu;O,2,Ti-supported CuO film composed of bamboo-leaf-like nanosheets,nanosheet,bamboo-leaf-like nanosheets forming a nanostructured film,nanostructured CuO film on Ti substrate
+mat_b0f10eeecd0c48,Cu,CuO,Cu;O,2,CuO nanowires and CuO nanorods,nanowire,nanowires and nanorods,monoclinic CuO with preferred growth orientation
+mat_6863c91a32fcaa,Cu,CuO/ZnO,Cu;O;Zn,3,CuO nanoparticle-decorated porous ZnO nanorods,nanorod,CuO nanoparticles decorating porous ZnO nanorods,CuO nanoparticles supported on porous ZnO nanorods
+mat_d1a0a19bd3df38,Cu,CuO/rGO,C;Cu;O,3,CuO nanoflower/reduced graphene oxide layered nanocomposite film,nanosheet,CuO nanoflowers connected with crumpled rGO nanosheets,CuO nanoflowers on rGO nanosheets; CuO/rGO heterostructure film
+mat_49a0516de6717d,Cu,CuO; CuO-PANI,C;Cu;N;O,4,CuO nanorods and CuO-PANI nanostructure coatings,nanorod,nanorods; CuO-PANI nanostructure coating,monoclinic CuO; CuO-PANI nanostructure
+mat_005761158243cf,Cu,CuO@TiO2,Cu;O;Ti,3,core-shell dendritic CuO@TiO2; dendritic CuO precursor,dendrite,dendritic CuO retained after TiO2 coating,monoclinic CuO; TiO2 shell after sol-gel coating and calcination
+mat_32d5c494192461,Cu,MoS2/CuO,Cu;Mo;O;S,4,MoS2(n)-CuO(p) piezotronic diode on cellulose paper; hollow CuO irregular nanorods,nanorod,MoS2 nanoflakes self-assembled into microsphere-like morphology; CuO hollow irregular nanorod-like structures; uniform CuO deposition on MoS2-cellulose paper,hexagonal MoS2; monoclinic CuO; MoS2/CuO heterojunction
