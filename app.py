@@ -92,6 +92,31 @@ def load_database() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     materials = pd.read_csv(DATABASE_DIR / "materials.csv")
     methods = pd.read_csv(DATABASE_DIR / "methods.csv")
     evidence = pd.read_csv(DATABASE_DIR / "evidence.csv")
+    ceder_path = DATABASE_DIR / "ceder_methods.csv.gz"
+    if ceder_path.exists():
+        ceder = pd.read_csv(ceder_path, compression="gzip", low_memory=False)
+        ceder_methods = ceder.rename(columns={"cost_AUD_per_g": "precursor_cost_AUD_per_g"}).copy()
+        ceder_methods["cost_unit"] = "AUD/g target"
+        ceder_methods["cost_match_quality"] = "unmatched"
+        ceder_methods["entry_id"] = ceder_methods["method_id"]
+        ceder_methods["protocol_number"] = 1
+        ceder_methods["time_min"] = pd.NA
+        ceder_methods["material_group"] = "Ceder literature corpus"
+        ceder_methods["protocol_source"] = ceder_methods["source_dataset"]
+        methods = pd.concat([methods, ceder_methods], ignore_index=True, sort=False)
+
+        ceder_evidence = pd.DataFrame({
+            "method_id": ceder["method_id"],
+            "doi": ceder["doi"],
+            "precursors": ceder["precursors"],
+            "full_synthesis_procedure": ceder["procedure"],
+            "pH": pd.NA,
+            "particle_size_nm": pd.NA,
+            "diameter_nm": pd.NA,
+            "washing": pd.NA,
+            "post_treatment": ceder["reaction_string"],
+        })
+        evidence = pd.concat([evidence, ceder_evidence], ignore_index=True, sort=False)
     return materials, methods, evidence
 
 
@@ -101,6 +126,13 @@ methods_df["precursor_cost_AUD_per_g"] = pd.to_numeric(
 )
 
 NULLS = {"", "nan", "none", "null", "<na>", "not reported", "not available"}
+VALID_ELEMENTS = set("""
+H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn
+Ga Ge As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La
+Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu Hf Ta W Re Os Ir Pt Au Hg Tl Pb Bi Po
+At Rn Fr Ra Ac Th Pa U Np Pu Am Cm Bk Cf Es Fm Md No Lr Rf Db Sg Bh Hs Mt Ds Rg
+Cn Nh Fl Mc Lv Ts Og
+""".split())
 
 
 def clean(value: Any, default: str = "Not reported") -> str:
@@ -202,8 +234,10 @@ st.markdown('<div class="step-label">01 · Define the target</div>', unsafe_allo
 
 all_elements = sorted(
     {element for value in methods_df["elements"].dropna() for element in elements_of(value)}
+    & VALID_ELEMENTS
 )
 all_morphologies = sorted(methods_df["morphology"].dropna().astype(str).unique(), key=str.lower)
+reported_morphologies = [m for m in all_morphologies if m.lower() != "unspecified"]
 
 selector_1, selector_2 = st.columns(2)
 with selector_1:
@@ -216,8 +250,9 @@ with selector_1:
 with selector_2:
     selected_morphology = st.selectbox(
         "Target morphology",
-        ["Select"] + all_morphologies,
-        format_func=lambda x: "Select morphology" if x == "Select" else title_label(x),
+        ["Any morphology"] + reported_morphologies,
+        format_func=title_label,
+        help="Choose a morphology when it matters. Records whose source text did not state morphology can remain visible.",
     )
 
 candidate = methods_df.copy()
@@ -249,20 +284,37 @@ with advanced_2:
 with advanced_3:
     show_reference_estimates = st.toggle("Show indicative estimates", value=True)
 
-ready = bool(selected_elements) and selected_morphology != "Select"
+include_unspecified = st.toggle(
+    "Include literature routes with morphology not reported",
+    value=True,
+    help="Many synthesis papers report composition and procedure but do not state a standard morphology label.",
+)
+
+ready = bool(selected_elements)
 
 if not ready:
     st.markdown(
-        '<div class="empty-state"><strong>Select elements and morphology to begin</strong><br><br>Only materials that exactly match your target will be shown, keeping the results focused and comparable.</div>',
+        '<div class="empty-state"><strong>Select one or more target elements to begin</strong><br><br>You can then narrow the results by formula and morphology.</div>',
         unsafe_allow_html=True,
     )
     st.stop()
 
-filtered = candidate[candidate["morphology"].astype(str) == selected_morphology].copy()
+if selected_morphology == "Any morphology":
+    filtered = candidate.copy()
+    if not include_unspecified:
+        filtered = filtered[filtered["morphology"].astype(str).str.lower() != "unspecified"]
+else:
+    allowed_morphologies = {selected_morphology}
+    if include_unspecified:
+        allowed_morphologies.add("Unspecified")
+    filtered = candidate[candidate["morphology"].astype(str).isin(allowed_morphologies)].copy()
 if selected_formula != "All matching formulas":
     filtered = filtered[filtered["formula"].astype(str) == selected_formula]
 if not show_reference_estimates:
-    filtered = filtered[filtered["cost_match_quality"].astype(str).str.contains("formula", case=False, na=False)]
+    filtered = filtered[
+        filtered["precursor_cost_AUD_per_g"].notna()
+        & filtered["cost_match_quality"].astype(str).str.contains("formula", case=False, na=False)
+    ]
 
 # Remove mechanically duplicated cards while preserving distinct literature protocols.
 dedupe_columns = [
@@ -274,17 +326,23 @@ filtered = filtered.drop_duplicates(subset=dedupe_columns)
 filtered["_temperature"] = pd.to_numeric(
     filtered["temperature_C"].astype(str).str.extract(r"([-+]?\d*\.?\d+)")[0], errors="coerce"
 )
+filtered["_morph_rank"] = (
+    filtered["morphology"].astype(str).str.lower() == "unspecified"
+).astype(int)
 if sort_by == "Lowest cost":
-    filtered = filtered.sort_values(["precursor_cost_AUD_per_g", "route"], na_position="last")
+    filtered = filtered.sort_values(["_morph_rank", "precursor_cost_AUD_per_g", "route"], na_position="last")
 elif sort_by == "Lowest temperature":
-    filtered = filtered.sort_values(["_temperature", "route"], na_position="last")
+    filtered = filtered.sort_values(["_morph_rank", "_temperature", "route"], na_position="last")
 else:
-    filtered = filtered.sort_values(["route", "precursor_cost_AUD_per_g"], na_position="last")
+    filtered = filtered.sort_values(["_morph_rank", "route", "precursor_cost_AUD_per_g"], na_position="last")
+
+total_results = len(filtered)
+displayed = filtered.head(100)
 
 st.markdown('<div class="step-label">02 · Matching routes</div>', unsafe_allow_html=True)
 
 metric_1, metric_2, metric_3, metric_4 = st.columns(4)
-metric_1.metric("Matching routes", len(filtered))
+metric_1.metric("Matching routes", total_results)
 metric_2.metric("Target formulas", filtered["formula"].nunique() if not filtered.empty else 0)
 metric_3.metric("Lowest theoretical cost", f"A${filtered['precursor_cost_AUD_per_g'].min():.2f}" if filtered["precursor_cost_AUD_per_g"].notna().any() else "—")
 metric_4.metric("Literature records", filtered["entry_id"].nunique() if not filtered.empty else 0)
@@ -294,10 +352,13 @@ st.caption(
 )
 
 if filtered.empty:
-    st.warning("No route currently matches this exact elemental composition and morphology. Try another morphology or enable indicative estimates.")
+    st.warning("No route matches these filters. Try ‘Any morphology’, include records with morphology not reported, or turn off exact element matching.")
     st.stop()
 
-for rank, (_, method) in enumerate(filtered.iterrows(), start=1):
+if total_results > len(displayed):
+    st.info(f"Showing the first {len(displayed):,} of {total_results:,} routes. Select a target formula to narrow the list.")
+
+for rank, (_, method) in enumerate(displayed.iterrows(), start=1):
     cost = method.get("precursor_cost_AUD_per_g")
     confidence, confidence_note = cost_confidence(method)
     cost_text = f"A${cost:,.2f}" if pd.notna(cost) else "Pending"
