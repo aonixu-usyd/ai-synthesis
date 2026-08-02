@@ -456,6 +456,6 @@ for rank, (_, method) in enumerate(displayed.iterrows(), start=1):
 
 st.divider()
 st.markdown(
-    '<p class="method-note">Data are derived from structured literature records. Theoretical costs support early route comparison and are not laboratory budgets. For composites, unreported yields or incomplete stoichiometry, use the confidence label when interpreting the estimate.</p>',
+    '<p class="method-note">Database version 2026-08-02 · 55,005 literature routes. Data are derived from structured literature records. Theoretical costs support early route comparison and are not laboratory budgets. For composites, unreported yields or incomplete stoichiometry, use the confidence label when interpreting the estimate.</p>',
     unsafe_allow_html=True,
 )
