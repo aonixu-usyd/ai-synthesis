@@ -105,7 +105,7 @@ def load_database() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         ceder = pd.read_csv(ceder_source, compression="gzip", low_memory=False)
         ceder_methods = ceder.rename(columns={"cost_AUD_per_g": "precursor_cost_AUD_per_g"}).copy()
         ceder_methods["cost_unit"] = "AUD/g target"
-        ceder_methods["cost_match_quality"] = "unmatched"
+        ceder_methods["cost_match_quality"] = ceder_methods["cost_confidence"]
         ceder_methods["entry_id"] = ceder_methods["method_id"]
         ceder_methods["protocol_number"] = 1
         ceder_methods["time_min"] = pd.NA
@@ -201,6 +201,8 @@ def temperature_text(value: Any) -> str:
 
 def cost_confidence(row: pd.Series) -> tuple[str, str]:
     quality = clean(row.get("cost_match_quality"), "").lower()
+    if "stoichiometric" in quality:
+        return "High confidence", "Calculated by cation balance from a traceable vendor pack price"
     if "formula" in quality:
         return "High confidence", "Matched by target formula and synthesis route"
     if "morphology+route" in quality:
@@ -290,7 +292,11 @@ with advanced_1:
 with advanced_2:
     sort_by = st.selectbox("Sort results", ["Lowest cost", "Lowest temperature", "Route name"])
 with advanced_3:
-    show_reference_estimates = st.toggle("Show indicative estimates", value=True)
+    show_unpriced_routes = st.toggle(
+        "Show routes with cost pending",
+        value=True,
+        help="Turn this off to show only routes with a traceable 1 g metal-precursor cost.",
+    )
 
 include_unspecified = st.toggle(
     "Include literature routes with morphology not reported",
@@ -318,11 +324,8 @@ else:
     filtered = candidate[candidate["morphology"].astype(str).isin(allowed_morphologies)].copy()
 if selected_formula != "All matching formulas":
     filtered = filtered[filtered["formula"].astype(str) == selected_formula]
-if not show_reference_estimates:
-    filtered = filtered[
-        filtered["precursor_cost_AUD_per_g"].notna()
-        & filtered["cost_match_quality"].astype(str).str.contains("formula", case=False, na=False)
-    ]
+if not show_unpriced_routes:
+    filtered = filtered[filtered["precursor_cost_AUD_per_g"].notna()]
 
 # Remove mechanically duplicated cards while preserving distinct literature protocols.
 dedupe_columns = [
@@ -403,6 +406,15 @@ for rank, (_, method) in enumerate(displayed.iterrows(), start=1):
     evidence = evidence_df[evidence_df["method_id"] == method["method_id"]]
     with st.expander(f"View route {rank:02d}: full procedure and cost basis"):
         st.markdown(f"**Cost note:** {confidence_note}. The source unit is `{clean(method.get('cost_unit'))}`.")
+        breakdown = clean(method.get("cost_breakdown"), "")
+        if breakdown:
+            st.write(f"**Calculation:** {breakdown}")
+        price_date = clean(method.get("cost_price_date"), "")
+        source_urls = [url for url in clean(method.get("cost_source"), "").split(";") if url]
+        if source_urls:
+            links = " · ".join(f"[Vendor price {i + 1}]({url})" for i, url in enumerate(source_urls))
+            suffix = f" (checked {price_date})" if price_date else ""
+            st.markdown(f"**Price source:** {links}{suffix}")
         if evidence.empty:
             st.info("No structured literature procedure is currently available for this route.")
             continue
