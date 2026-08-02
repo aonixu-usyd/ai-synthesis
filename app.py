@@ -221,9 +221,21 @@ with selector_2:
     )
 
 candidate = methods_df.copy()
+
+match_col, _ = st.columns([1, 2])
+with match_col:
+    exact_elements = st.toggle(
+        "Exact element set only",
+        value=False,
+        help="Off: include materials containing all selected elements. On: exclude materials with any additional elements.",
+    )
+
 if selected_elements:
     wanted = set(selected_elements)
-    candidate = candidate[candidate["elements"].apply(lambda x: elements_of(x) == wanted)]
+    if exact_elements:
+        candidate = candidate[candidate["elements"].apply(lambda x: elements_of(x) == wanted)]
+    else:
+        candidate = candidate[candidate["elements"].apply(lambda x: wanted.issubset(elements_of(x)))]
 
 formula_options = sorted(candidate["formula"].dropna().astype(str).unique(), key=str.lower)
 advanced_1, advanced_2, advanced_3 = st.columns([1.2, 1.2, .8])
