@@ -10,6 +10,7 @@ import json
 import re
 import base64
 from pathlib import Path
+from typing import Optional
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,7 +21,8 @@ INDEX_FIELDS = [
     "method_id", "source_dataset", "doi", "mp_id", "formula", "elements",
     "n_elements", "target_material", "morphology", "morphology_confidence",
     "route", "precursor", "solvent", "temperature_C", "time_h", "atmosphere",
-    "cost_AUD_per_g", "cost_confidence",
+    "cost_AUD_per_g", "cost_confidence", "cost_breakdown", "cost_source",
+    "cost_price_date",
 ]
 
 MORPHOLOGIES = [
@@ -51,8 +53,26 @@ FIELDS = [
     "elements", "n_elements", "target_material", "morphology",
     "morphology_confidence", "route", "precursor", "precursors", "solvent",
     "temperature_C", "time_h", "atmosphere", "reaction_string", "procedure",
-    "cost_AUD_per_g", "cost_confidence",
+    "cost_AUD_per_g", "cost_confidence", "cost_breakdown", "cost_source",
+    "cost_price_date",
 ]
+
+ATOMIC_WEIGHTS = {
+    "H": 1.008, "B": 10.81, "C": 12.011, "N": 14.007, "O": 15.999,
+    "F": 18.998, "P": 30.974, "S": 32.06, "Cl": 35.45, "Br": 79.904,
+    "I": 126.904, "Fe": 55.845, "Co": 58.933, "Ni": 58.6934,
+    "Cu": 63.546, "Zn": 65.38, "Ag": 107.8682,
+}
+PRICED_METALS = {"Ag", "Co", "Cu", "Fe", "Ni", "Zn"}
+NONMETALS = {"H", "B", "C", "N", "O", "F", "Si", "P", "S", "Cl", "Se", "Br", "I"}
+
+
+def load_prices() -> dict[str, dict]:
+    with (ROOT / "data" / "database" / "precursor_prices.csv").open(encoding="utf-8", newline="") as handle:
+        return {row["formula"]: row for row in csv.DictReader(handle)}
+
+
+PRICES = load_prices()
 
 
 def text(value) -> str:
@@ -77,6 +97,83 @@ def target_elements(target: dict) -> list[str]:
     for comp in target.get("composition") or []:
         found.update((comp.get("elements") or {}).keys())
     return sorted(found & VALID_ELEMENTS)
+
+
+def composition_summary(material: dict) -> Optional[tuple[float, dict[str, float]]]:
+    total_mass = 0.0
+    totals: dict[str, float] = {}
+    try:
+        for component in material.get("composition") or []:
+            amount = float(component.get("amount", 1))
+            for element, count_text in (component.get("elements") or {}).items():
+                count = amount * float(count_text)
+                if element not in ATOMIC_WEIGHTS:
+                    return None
+                totals[element] = totals.get(element, 0.0) + count
+                total_mass += count * ATOMIC_WEIGHTS[element]
+    except (TypeError, ValueError):
+        return None
+    return (total_mass, totals) if total_mass > 0 else None
+
+
+def theoretical_cost(target: dict, precursors: list[dict]) -> tuple[str, str, str, str, str]:
+    target_summary = composition_summary(target)
+    if not target_summary:
+        return "", "Price or stoichiometry unavailable", "", "", ""
+    target_mass, target_counts = target_summary
+    target_metals = set(target_counts) - NONMETALS
+    if not target_metals or not target_metals.issubset(PRICED_METALS):
+        return "", "Price or stoichiometry unavailable", "", "", ""
+
+    candidates: dict[str, list[tuple[dict, dict, float, dict[str, float]]]] = {
+        metal: [] for metal in target_metals
+    }
+    carrier_counts = {metal: 0 for metal in target_metals}
+    for precursor in precursors:
+        precursor_elements = {
+            element
+            for component in precursor.get("composition") or []
+            for element in (component.get("elements") or {})
+        }
+        for metal in precursor_elements & target_metals:
+            carrier_counts[metal] += 1
+        formula = text(precursor.get("material_formula"))
+        price = PRICES.get(formula)
+        summary = composition_summary(precursor)
+        if not price or not summary:
+            continue
+        precursor_mass, precursor_counts = summary
+        carried_metals = set(precursor_counts) & target_metals
+        if len(carried_metals) == 1:
+            metal = next(iter(carried_metals))
+            candidates[metal].append((precursor, price, precursor_mass, precursor_counts))
+
+    if any(carrier_counts[metal] != 1 or len(candidates[metal]) != 1 for metal in target_metals):
+        return "", "Price or stoichiometry unavailable", "", "", ""
+
+    total_cost = 0.0
+    details = []
+    source_urls = []
+    dates = []
+    for metal in sorted(target_metals):
+        precursor, price, precursor_mass, precursor_counts = candidates[metal][0]
+        mole_ratio = target_counts[metal] / precursor_counts[metal]
+        grams_per_g_target = mole_ratio * precursor_mass / target_mass
+        line_cost = grams_per_g_target * float(price["price_AUD_per_g"])
+        total_cost += line_cost
+        details.append(
+            f"{text(precursor.get('material_formula'))}: {grams_per_g_target:.4g} g × "
+            f"A${float(price['price_AUD_per_g']):.4g}/g"
+        )
+        source_urls.append(price["source_url"])
+        dates.append(price["price_checked_date"])
+    return (
+        f"{total_cost:.6f}",
+        "Stoichiometric cation balance + vendor price",
+        "; ".join(details),
+        ";".join(dict.fromkeys(source_urls)),
+        max(dates),
+    )
 
 
 def condition_values(value) -> list[tuple[float, str]]:
@@ -161,6 +258,7 @@ def convert(dataset: str, index: int, record: dict) -> dict:
     temperature, hours, atmosphere, solvent, steps = summarize_conditions(record.get("operations") or [])
     morph, morph_conf = morphology(record)
     route = "solid-state" if dataset == "Ceder solid-state" else text(record.get("type")) or "solution-based"
+    cost, cost_confidence, cost_breakdown, cost_source, cost_price_date = theoretical_cost(target, precursors)
     signature = "|".join([dataset, text(record.get("doi")), formula, text(record.get("reaction_string")), route, steps])
     method_id = "ceder_" + hashlib.sha1(signature.encode()).hexdigest()[:16]
     procedure = paragraph(record) or steps
@@ -188,8 +286,11 @@ def convert(dataset: str, index: int, record: dict) -> dict:
         "atmosphere": atmosphere,
         "reaction_string": text(record.get("reaction_string")),
         "procedure": procedure[:4000],
-        "cost_AUD_per_g": "",
-        "cost_confidence": "Price data unavailable",
+        "cost_AUD_per_g": cost,
+        "cost_confidence": cost_confidence,
+        "cost_breakdown": cost_breakdown,
+        "cost_source": cost_source,
+        "cost_price_date": cost_price_date,
     }
 
 
