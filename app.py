@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import ast
+import html
 import json
-import math
 from pathlib import Path
 from typing import Any
 
@@ -10,1271 +10,354 @@ import pandas as pd
 import streamlit as st
 
 
-# ============================================================
-# PAGE SETTINGS
-# ============================================================
-
 st.set_page_config(
-    page_title="Materials Synthesis Explorer",
-    page_icon="⚗️",
+    page_title="Synthesis Compass",
+    page_icon="◈",
     layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
-st.title("Materials Synthesis Explorer")
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,600&display=swap');
 
-st.caption(
-    "Search literature-derived synthesis routes by elemental composition, "
-    "material formula, morphology, synthesis route and reported conditions."
+    :root {
+        --ink: #17211c;
+        --muted: #66736c;
+        --line: #dfe7e2;
+        --paper: #f6f8f5;
+        --card: #ffffff;
+        --green: #176b52;
+        --green-soft: #e4f3ec;
+        --amber: #a96819;
+    }
+    .stApp { background: var(--paper); color: var(--ink); }
+    html, body, [class*="css"] { font-family: "DM Sans", sans-serif; }
+    .block-container { max-width: 1180px; padding-top: 2.1rem; padding-bottom: 5rem; }
+    h1, h2, h3 { color: var(--ink); letter-spacing: -0.025em; }
+    .hero {
+        padding: 2.6rem 2.8rem;
+        border-radius: 26px;
+        color: white;
+        background:
+          radial-gradient(circle at 88% 12%, rgba(171,220,194,.28), transparent 29%),
+          linear-gradient(135deg, #143d31 0%, #176b52 100%);
+        box-shadow: 0 18px 50px rgba(20,61,49,.16);
+        margin-bottom: 1.5rem;
+    }
+    .eyebrow { font-size: .77rem; letter-spacing: .14em; text-transform: uppercase; opacity: .72; font-weight: 700; }
+    .hero h1 { font-family: "Newsreader", serif; color: white; font-size: clamp(2.15rem, 4vw, 3.55rem); margin: .35rem 0 .55rem; }
+    .hero p { max-width: 720px; font-size: 1.05rem; line-height: 1.65; margin: 0; color: rgba(255,255,255,.82); }
+    .step-label { margin: 1.7rem 0 .65rem; color: var(--green); font-size: .78rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    div[data-testid="stSelectbox"], div[data-testid="stMultiSelect"] { background: white; border-radius: 14px; }
+    div[data-testid="stMetric"] { background: white; border: 1px solid var(--line); padding: 1rem 1.15rem; border-radius: 16px; }
+    .result-card {
+        background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+        padding: 1.45rem 1.55rem; margin: .8rem 0; box-shadow: 0 8px 26px rgba(30,55,43,.045);
+    }
+    .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+    .route-pill { display: inline-block; padding: .28rem .62rem; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: .73rem; font-weight: 700; }
+    .result-card h3 { margin: .55rem 0 .2rem; font-size: 1.26rem; }
+    .card-sub { color: var(--muted); font-size: .88rem; line-height: 1.45; }
+    .cost { color: var(--green); font-size: 1.45rem; font-weight: 700; text-align: right; white-space: nowrap; }
+    .cost-label { color: var(--muted); font-size: .72rem; font-weight: 600; text-align: right; }
+    .facts { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: .75rem; margin-top: 1.15rem; }
+    .fact { background: #f7faf8; border-radius: 12px; padding: .7rem .8rem; min-height: 62px; }
+    .fact b { display: block; color: var(--muted); font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; margin-bottom: .25rem; }
+    .fact span { color: var(--ink); font-size: .86rem; line-height: 1.35; }
+    .empty-state { padding: 3rem 1.5rem; text-align: center; color: var(--muted); background: white; border: 1px dashed #c8d5ce; border-radius: 20px; }
+    .method-note { color: var(--muted); font-size: .82rem; line-height: 1.55; }
+    div[data-testid="stExpander"] { border: 1px solid var(--line); border-radius: 14px; background: white; }
+    .stButton > button[kind="primary"] { background: var(--green); border-radius: 12px; border: 0; min-height: 45px; font-weight: 700; }
+    @media (max-width: 720px) {
+        .block-container { padding: 1rem .85rem 3rem; }
+        .hero { padding: 1.8rem 1.3rem; border-radius: 20px; }
+        .facts { grid-template-columns: repeat(2, minmax(0,1fr)); }
+        .card-top { display: block; }
+        .cost, .cost-label { text-align: left; }
+        .cost { margin-top: .8rem; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
-
-# ============================================================
-# PATHS
-# ============================================================
 
 DATABASE_DIR = Path("data/database")
 
-MATERIALS_PATH = DATABASE_DIR / "materials.csv"
-METHODS_PATH = DATABASE_DIR / "methods.csv"
-EVIDENCE_PATH = DATABASE_DIR / "evidence.csv"
-
-
-# ============================================================
-# LOAD DATA
-# ============================================================
 
 @st.cache_data
-def load_database():
-    required_files = [
-        MATERIALS_PATH,
-        METHODS_PATH,
-        EVIDENCE_PATH,
-    ]
-
-    missing = [
-        str(path)
-        for path in required_files
-        if not path.exists()
-    ]
-
-    if missing:
-        raise FileNotFoundError(
-            "Missing database files:\n"
-            + "\n".join(missing)
-        )
-
-    materials = pd.read_csv(MATERIALS_PATH)
-    methods = pd.read_csv(METHODS_PATH)
-    evidence = pd.read_csv(EVIDENCE_PATH)
-
+def load_database() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    materials = pd.read_csv(DATABASE_DIR / "materials.csv")
+    methods = pd.read_csv(DATABASE_DIR / "methods.csv")
+    evidence = pd.read_csv(DATABASE_DIR / "evidence.csv")
     return materials, methods, evidence
 
 
-try:
-    materials_df, methods_df, evidence_df = load_database()
+materials_df, methods_df, evidence_df = load_database()
+methods_df["precursor_cost_AUD_per_g"] = pd.to_numeric(
+    methods_df["precursor_cost_AUD_per_g"], errors="coerce"
+)
 
-except Exception as exc:
-    st.error(str(exc))
-    st.stop()
-
-
-# ============================================================
-# HELPERS
-# ============================================================
-
-NULL_VALUES = {
-    "",
-    "nan",
-    "none",
-    "null",
-    "<na>",
-    "not reported",
-    "not available",
-}
+NULLS = {"", "nan", "none", "null", "<na>", "not reported", "not available"}
 
 
-def clean_text(
-    value: Any,
-    default: str = "Not reported",
-) -> str:
+def clean(value: Any, default: str = "未报告") -> str:
     if value is None:
         return default
-
     try:
         if pd.isna(value):
             return default
     except (TypeError, ValueError):
         pass
-
     text = str(value).strip()
-
-    if text.lower() in NULL_VALUES:
-        return default
-
-    return text
+    return default if text.lower() in NULLS else text
 
 
-def has_value(value: Any) -> bool:
-    return clean_text(value, default="") != ""
+def esc(value: Any, default: str = "未报告") -> str:
+    return html.escape(clean(value, default))
 
 
-def parse_nested(value: Any):
+def elements_of(value: Any) -> set[str]:
+    return {item.strip() for item in clean(value, "").split(";") if item.strip()}
+
+
+def parse_nested(value: Any) -> Any:
     if isinstance(value, (list, dict)):
         return value
-
-    if not isinstance(value, str):
+    if not isinstance(value, str) or not value.strip():
         return value
-
-    text = value.strip()
-
-    if not text:
-        return value
-
-    try:
-        return json.loads(text)
-    except Exception:
-        pass
-
-    try:
-        return ast.literal_eval(text)
-    except Exception:
-        return value
+    for parser in (json.loads, ast.literal_eval):
+        try:
+            return parser(value)
+        except Exception:
+            continue
+    return value
 
 
-def parse_elements(value: Any) -> list[str]:
-    if not has_value(value):
-        return []
-
-    return [
-        element.strip()
-        for element in str(value).split(";")
-        if element.strip()
-    ]
+def title_label(value: Any) -> str:
+    text = clean(value)
+    return text.replace("_", " ").title() if text != "未报告" else text
 
 
-def parse_numeric(value: Any) -> float | None:
-    if value is None:
-        return None
-
-    try:
-        if pd.isna(value):
-            return None
-    except (TypeError, ValueError):
-        pass
-
-    if isinstance(value, (int, float)):
-        return float(value)
-
-    text = str(value).strip()
-
-    if not text:
-        return None
-
-    import re
-
-    numbers = re.findall(
-        r"[-+]?\d*\.?\d+",
-        text,
-    )
-
-    if not numbers:
-        return None
-
-    try:
-        return float(numbers[0])
-    except ValueError:
-        return None
+def reaction_time(row: pd.Series) -> str:
+    parts: list[str] = []
+    hours = clean(row.get("time_h"), "")
+    minutes = clean(row.get("time_min"), "")
+    if hours:
+        parts.append(hours if any(c.isalpha() for c in hours) else f"{hours} h")
+    if minutes:
+        parts.append(minutes if any(c.isalpha() for c in minutes) else f"{minutes} min")
+    return " / ".join(parts) or "未报告"
 
 
-def title_case_label(value: Any) -> str:
-    text = clean_text(value)
-
-    if text == "Not reported":
+def temperature_text(value: Any) -> str:
+    text = clean(value)
+    if text == "未报告" or "°" in text or any(char.isalpha() for char in text):
         return text
-
-    return text.replace("_", " ").title()
-
-
-def show_inline_field(
-    label: str,
-    value: Any,
-) -> None:
-    if has_value(value):
-        st.markdown(
-            f"**{label}:** {clean_text(value)}"
-        )
+    return f"{text} °C"
 
 
-def morphology_icon(morphology: str) -> str:
-    mapping = {
-        "nanoparticle": "●",
-        "nanosphere": "◉",
-        "nanowire": "│",
-        "nanorod": "▬",
-        "nanoplate": "▰",
-        "nanosheet": "▱",
-        "nanocube": "■",
-        "nanotriangle": "▲",
-        "nanoprism": "△",
-        "nanoflower": "✿",
-        "nanopetal": "❧",
-        "dendrite": "⌁",
-        "porous": "◌",
-        "hollow": "◎",
-        "film": "▭",
-    }
-
-    return mapping.get(
-        str(morphology).lower(),
-        "◆",
-    )
+def cost_confidence(row: pd.Series) -> tuple[str, str]:
+    quality = clean(row.get("cost_match_quality"), "").lower()
+    if "formula" in quality:
+        return "较高可信度", "按目标化学式与路线匹配"
+    if "morphology+route" in quality:
+        return "中等可信度", "按文献、形貌与路线匹配"
+    if quality and quality != "unmatched":
+        return "参考估算", "成本来自较宽松的原料匹配"
+    return "资料不足", "现有记录不足以可靠估算"
 
 
-def display_reagent_table(value: Any) -> None:
-    if not has_value(value):
-        st.write("Not reported")
-        return
-
+def reagent_rows(value: Any) -> pd.DataFrame:
     parsed = parse_nested(value)
-
     if not isinstance(parsed, list):
-        st.write(clean_text(value))
-        return
-
+        return pd.DataFrame()
     rows = []
-
     for item in parsed:
         if isinstance(item, dict):
             rows.append(
                 {
-                    "Reagent": clean_text(
-                        item.get("name"),
-                        default="",
-                    ),
-                    "Formula": clean_text(
-                        item.get("formula"),
-                        default="",
-                    ),
-                    "Amount": clean_text(
-                        item.get("amount"),
-                        default="",
-                    ),
-                    "Role / notes": clean_text(
-                        item.get("role")
-                        or item.get("molecular_weight"),
-                        default="",
-                    ),
+                    "试剂": clean(item.get("name"), ""),
+                    "化学式": clean(item.get("formula"), ""),
+                    "文献用量": clean(item.get("amount"), ""),
                 }
             )
-        else:
-            rows.append(
-                {
-                    "Reagent": str(item),
-                    "Formula": "",
-                    "Amount": "",
-                    "Role / notes": "",
-                }
-            )
-
-    reagent_df = pd.DataFrame(rows)
-
-    empty_columns = [
-        column
-        for column in reagent_df.columns
-        if reagent_df[column]
-        .astype(str)
-        .str.strip()
-        .eq("")
-        .all()
-    ]
-
-    reagent_df = reagent_df.drop(
-        columns=empty_columns,
-        errors="ignore",
-    )
-
-    st.dataframe(
-        reagent_df,
-        use_container_width=True,
-        hide_index=True,
-    )
+    return pd.DataFrame(rows).replace("", pd.NA).dropna(axis=1, how="all")
 
 
-def display_additives(value: Any) -> None:
-    if not has_value(value):
-        st.write("Not reported")
-        return
-
-    parsed = parse_nested(value)
-
-    if isinstance(parsed, list):
-        for item in parsed:
-            if isinstance(item, dict):
-                label = (
-                    item.get("name")
-                    or item.get("formula")
-                    or str(item)
-                )
-                st.write(f"• {label}")
-            else:
-                st.write(f"• {item}")
-    else:
-        st.write(clean_text(value))
-
-
-# ============================================================
-# PREPARE NUMERIC COLUMNS
-# ============================================================
-
-methods_df["precursor_cost_AUD_per_g"] = pd.to_numeric(
-    methods_df["precursor_cost_AUD_per_g"],
-    errors="coerce",
+st.markdown(
+    """
+    <section class="hero">
+      <div class="eyebrow">Literature-derived synthesis intelligence</div>
+      <h1>Synthesis Compass</h1>
+      <p>从元素与目标形貌出发，找到可追溯的合成路线，并比较制备 1 g 目标材料所需金属前驱体的理论采购成本。</p>
+    </section>
+    """,
+    unsafe_allow_html=True,
 )
 
-methods_df["_temperature_numeric"] = (
-    methods_df["temperature_C"]
-    .apply(parse_numeric)
-)
-
-methods_df["_time_h_numeric"] = (
-    methods_df["time_h"]
-    .apply(parse_numeric)
-)
-
-methods_df["_time_min_numeric"] = (
-    methods_df["time_min"]
-    .apply(parse_numeric)
-)
-
-
-# ============================================================
-# SIDEBAR FILTERS
-# ============================================================
-
-st.sidebar.header("Search synthesis database")
-
-
-# ------------------------------------------------------------
-# ELEMENT SELECTION
-# ------------------------------------------------------------
+st.markdown('<div class="step-label">01 · 定义目标材料</div>', unsafe_allow_html=True)
 
 all_elements = sorted(
-    {
-        element
-        for value in methods_df["elements"].dropna()
-        for element in parse_elements(value)
-    }
+    {element for value in methods_df["elements"].dropna() for element in elements_of(value)}
 )
+all_morphologies = sorted(methods_df["morphology"].dropna().astype(str).unique(), key=str.lower)
 
-selected_elements = st.sidebar.multiselect(
-    "Elements",
-    options=all_elements,
-    placeholder="Select one or more elements",
-)
-
-element_match_mode = st.sidebar.radio(
-    "Element matching",
-    options=[
-        "Contains all selected elements",
-        "Contains any selected element",
-        "Exact element set",
-    ],
-    index=0,
-)
-
-
-# ------------------------------------------------------------
-# FORMULA
-# ------------------------------------------------------------
-
-formula_options = sorted(
-    methods_df["formula"]
-    .dropna()
-    .astype(str)
-    .unique(),
-    key=str.lower,
-)
-
-selected_formula = st.sidebar.selectbox(
-    "Formula",
-    options=["All"] + formula_options,
-)
-
-
-# ------------------------------------------------------------
-# MORPHOLOGY
-# ------------------------------------------------------------
-
-morphology_options = sorted(
-    methods_df["morphology"]
-    .dropna()
-    .astype(str)
-    .unique(),
-    key=str.lower,
-)
-
-selected_morphologies = st.sidebar.multiselect(
-    "Morphology",
-    options=morphology_options,
-    placeholder="All morphologies",
-)
-
-
-# ------------------------------------------------------------
-# SYNTHESIS ROUTE
-# ------------------------------------------------------------
-
-route_options = sorted(
-    methods_df["route"]
-    .dropna()
-    .astype(str)
-    .unique(),
-    key=str.lower,
-)
-
-selected_routes = st.sidebar.multiselect(
-    "Synthesis route",
-    options=route_options,
-    placeholder="All synthesis routes",
-)
-
-
-# ------------------------------------------------------------
-# MATERIAL GROUP
-# ------------------------------------------------------------
-
-material_group_options = sorted(
-    methods_df["material_group"]
-    .dropna()
-    .astype(str)
-    .unique(),
-)
-
-selected_material_groups = st.sidebar.multiselect(
-    "Material group",
-    options=material_group_options,
-    default=material_group_options,
-)
-
-
-# ------------------------------------------------------------
-# COST
-# ------------------------------------------------------------
-
-known_costs = (
-    methods_df["precursor_cost_AUD_per_g"]
-    .dropna()
-)
-
-if not known_costs.empty:
-    min_cost = float(known_costs.min())
-    max_cost = float(known_costs.max())
-
-    selected_cost_range = st.sidebar.slider(
-        "Theoretical precursor cost range",
-        min_value=float(math.floor(min_cost)),
-        max_value=float(math.ceil(max_cost)),
-        value=(
-            float(math.floor(min_cost)),
-            float(math.ceil(max_cost)),
-        ),
-        step=0.1,
+selector_1, selector_2 = st.columns(2)
+with selector_1:
+    selected_elements = st.multiselect(
+        "目标元素",
+        all_elements,
+        placeholder="例如：Cu、O",
+        help="选择目标材料包含的全部元素。",
     )
-else:
-    selected_cost_range = None
+with selector_2:
+    selected_morphology = st.selectbox(
+        "目标形貌",
+        ["请选择"] + all_morphologies,
+        format_func=lambda x: "请选择形貌" if x == "请选择" else title_label(x),
+    )
 
-
-include_unknown_cost = st.sidebar.checkbox(
-    "Include methods without cost",
-    value=True,
-)
-
-
-# ------------------------------------------------------------
-# SORT
-# ------------------------------------------------------------
-
-sort_option = st.sidebar.selectbox(
-    "Sort results by",
-    options=[
-        "Lowest precursor cost",
-        "Lowest temperature",
-        "Shortest reaction time",
-        "Formula",
-        "Morphology",
-    ],
-)
-
-
-max_results = st.sidebar.slider(
-    "Maximum results",
-    min_value=10,
-    max_value=100,
-    value=50,
-    step=10,
-)
-
-
-# ============================================================
-# FILTER METHODS
-# ============================================================
-
-filtered = methods_df.copy()
-
-
-# ------------------------------------------------------------
-# ELEMENT FILTER
-# ------------------------------------------------------------
-
+candidate = methods_df.copy()
 if selected_elements:
-    selected_set = set(selected_elements)
+    wanted = set(selected_elements)
+    candidate = candidate[candidate["elements"].apply(lambda x: elements_of(x) == wanted)]
 
-    def element_match(value):
-        method_elements = set(
-            parse_elements(value)
-        )
-
-        if (
-            element_match_mode
-            == "Contains all selected elements"
-        ):
-            return selected_set.issubset(
-                method_elements
-            )
-
-        if (
-            element_match_mode
-            == "Contains any selected element"
-        ):
-            return bool(
-                selected_set.intersection(
-                    method_elements
-                )
-            )
-
-        return method_elements == selected_set
-
-    filtered = filtered[
-        filtered["elements"].apply(
-            element_match
-        )
-    ]
-
-
-# ------------------------------------------------------------
-# FORMULA FILTER
-# ------------------------------------------------------------
-
-if selected_formula != "All":
-    filtered = filtered[
-        filtered["formula"].astype(str)
-        == selected_formula
-    ]
-
-
-# ------------------------------------------------------------
-# MORPHOLOGY FILTER
-# ------------------------------------------------------------
-
-if selected_morphologies:
-    filtered = filtered[
-        filtered["morphology"].isin(
-            selected_morphologies
-        )
-    ]
-
-
-# ------------------------------------------------------------
-# ROUTE FILTER
-# ------------------------------------------------------------
-
-if selected_routes:
-    filtered = filtered[
-        filtered["route"].isin(
-            selected_routes
-        )
-    ]
-
-
-# ------------------------------------------------------------
-# MATERIAL GROUP FILTER
-# ------------------------------------------------------------
-
-if selected_material_groups:
-    filtered = filtered[
-        filtered["material_group"].isin(
-            selected_material_groups
-        )
-    ]
-
-
-# ------------------------------------------------------------
-# COST FILTER
-# ------------------------------------------------------------
-
-if selected_cost_range is not None:
-    low_cost, high_cost = selected_cost_range
-
-    known_cost_mask = (
-        filtered["precursor_cost_AUD_per_g"]
-        .between(
-            low_cost,
-            high_cost,
-            inclusive="both",
-        )
+formula_options = sorted(candidate["formula"].dropna().astype(str).unique(), key=str.lower)
+advanced_1, advanced_2, advanced_3 = st.columns([1.2, 1.2, .8])
+with advanced_1:
+    selected_formula = st.selectbox(
+        "目标化学式（可选）", ["全部匹配"] + formula_options,
+        help="元素相同但化学计量不同的材料，可用化学式进一步区分。",
     )
+with advanced_2:
+    sort_by = st.selectbox("结果排序", ["成本最低", "温度最低", "路线名称"])
+with advanced_3:
+    show_reference_estimates = st.toggle("显示低可信估算", value=True)
 
-    if include_unknown_cost:
-        cost_mask = (
-            known_cost_mask
-            | filtered[
-                "precursor_cost_AUD_per_g"
-            ].isna()
-        )
-    else:
-        cost_mask = known_cost_mask
+ready = bool(selected_elements) and selected_morphology != "请选择"
 
-    filtered = filtered[cost_mask]
-
-
-# ============================================================
-# SORT RESULTS
-# ============================================================
-
-if sort_option == "Lowest precursor cost":
-    filtered = filtered.sort_values(
-        by=[
-            "precursor_cost_AUD_per_g",
-            "formula",
-            "morphology",
-        ],
-        ascending=[
-            True,
-            True,
-            True,
-        ],
-        na_position="last",
-    )
-
-elif sort_option == "Lowest temperature":
-    filtered = filtered.sort_values(
-        by=[
-            "_temperature_numeric",
-            "formula",
-        ],
-        ascending=True,
-        na_position="last",
-    )
-
-elif sort_option == "Shortest reaction time":
-    filtered["_combined_time_min"] = (
-        filtered["_time_h_numeric"]
-        .fillna(0)
-        * 60
-        + filtered["_time_min_numeric"]
-        .fillna(0)
-    )
-
-    no_time_mask = (
-        filtered["_time_h_numeric"].isna()
-        & filtered["_time_min_numeric"].isna()
-    )
-
-    filtered.loc[
-        no_time_mask,
-        "_combined_time_min",
-    ] = pd.NA
-
-    filtered = filtered.sort_values(
-        by=[
-            "_combined_time_min",
-            "formula",
-        ],
-        ascending=True,
-        na_position="last",
-    )
-
-elif sort_option == "Formula":
-    filtered = filtered.sort_values(
-        by=[
-            "formula",
-            "morphology",
-        ],
-    )
-
-elif sort_option == "Morphology":
-    filtered = filtered.sort_values(
-        by=[
-            "morphology",
-            "formula",
-        ],
-    )
-
-
-filtered = (
-    filtered
-    .head(max_results)
-    .reset_index(drop=True)
-)
-
-
-# ============================================================
-# DATABASE SUMMARY
-# ============================================================
-
-summary_col1, summary_col2, summary_col3, summary_col4 = (
-    st.columns(4)
-)
-
-summary_col1.metric(
-    "Matching methods",
-    len(filtered),
-)
-
-summary_col2.metric(
-    "Unique formulas",
-    filtered["formula"].nunique(),
-)
-
-summary_col3.metric(
-    "Morphologies",
-    filtered["morphology"].nunique(),
-)
-
-summary_col4.metric(
-    "Supporting records",
-    filtered["entry_id"].nunique(),
-)
-
-
-# ============================================================
-# ACTIVE FILTER SUMMARY
-# ============================================================
-
-active_filters = []
-
-if selected_elements:
-    active_filters.append(
-        "Elements: "
-        + ", ".join(selected_elements)
-    )
-
-if selected_formula != "All":
-    active_filters.append(
-        f"Formula: {selected_formula}"
-    )
-
-if selected_morphologies:
-    active_filters.append(
-        "Morphology: "
-        + ", ".join(selected_morphologies)
-    )
-
-if selected_routes:
-    active_filters.append(
-        "Routes: "
-        + ", ".join(selected_routes)
-    )
-
-
-if active_filters:
-    st.info(
-        " · ".join(active_filters)
-    )
-
-
-# ============================================================
-# NO RESULTS
-# ============================================================
-
-if filtered.empty:
-    st.warning(
-        "No synthesis routes match the selected filters."
+if not ready:
+    st.markdown(
+        '<div class="empty-state"><strong>先选择元素和形貌</strong><br><br>我们只会展示与你目标精确匹配的材料，避免一打开就出现几十条混乱结果。</div>',
+        unsafe_allow_html=True,
     )
     st.stop()
 
+filtered = candidate[candidate["morphology"].astype(str) == selected_morphology].copy()
+if selected_formula != "全部匹配":
+    filtered = filtered[filtered["formula"].astype(str) == selected_formula]
+if not show_reference_estimates:
+    filtered = filtered[filtered["cost_match_quality"].astype(str).str.contains("formula", case=False, na=False)]
 
-# ============================================================
-# COMPACT RESULTS TABLE
-# ============================================================
+# Remove mechanically duplicated cards while preserving distinct literature protocols.
+dedupe_columns = [
+    "entry_id", "protocol_number", "formula", "morphology", "route",
+    "precursor", "temperature_C", "time_h", "time_min",
+]
+filtered = filtered.drop_duplicates(subset=dedupe_columns)
 
-st.subheader("Matching synthesis methods")
-
-
-table_df = filtered[
-    [
-        "formula",
-        "elements",
-        "morphology",
-        "route",
-        "precursor",
-        "temperature_C",
-        "time_h",
-        "time_min",
-        "precursor_cost_AUD_per_g",
-        "cost_unit",
-        "entry_id",
-    ]
-].copy()
-
-
-table_df.insert(
-    0,
-    "Rank",
-    range(1, len(table_df) + 1),
+filtered["_temperature"] = pd.to_numeric(
+    filtered["temperature_C"].astype(str).str.extract(r"([-+]?\d*\.?\d+)")[0], errors="coerce"
 )
-
-
-table_df = table_df.rename(
-    columns={
-        "formula": "Formula",
-        "elements": "Elements",
-        "morphology": "Morphology",
-        "route": "Route",
-        "precursor": "Precursor",
-        "temperature_C": "Temperature",
-        "time_h": "Time (h)",
-        "time_min": "Time (min)",
-        "precursor_cost_AUD_per_g": "Cost",
-        "cost_unit": "Cost unit",
-        "entry_id": "Entry ID",
-    }
-)
-
-
-st.dataframe(
-    table_df,
-    use_container_width=True,
-    hide_index=True,
-    column_config={
-        "Cost": st.column_config.NumberColumn(
-            format="A$ %.4f",
-        ),
-    },
-)
-
-
-# ============================================================
-# METHOD CARDS
-# ============================================================
-
-st.subheader("Method cards")
-
-
-for result_index, method in filtered.iterrows():
-
-    formula = clean_text(
-        method.get("formula")
-    )
-
-    morphology = clean_text(
-        method.get("morphology")
-    )
-
-    route = clean_text(
-        method.get("route")
-    )
-
-    precursor = clean_text(
-        method.get("precursor")
-    )
-
-    icon = morphology_icon(
-        morphology
-    )
-
-    cost = method.get(
-        "precursor_cost_AUD_per_g"
-    )
-
-    if pd.notna(cost):
-        cost_text = (
-            f"A${cost:,.4f} "
-            f"{clean_text(method.get('cost_unit'))}"
-        )
-    else:
-        cost_text = "Cost unavailable"
-
-    title = (
-        f"{icon} {formula} · "
-        f"{title_case_label(morphology)} · "
-        f"{title_case_label(route)}"
-    )
-
-    with st.container(border=True):
-
-        header_col1, header_col2 = (
-            st.columns(
-                [4, 1]
-            )
-        )
-
-        with header_col1:
-            st.markdown(
-                f"### {title}"
-            )
-
-            target_material = clean_text(
-                method.get(
-                    "target_material"
-                ),
-                default="",
-            )
-
-            if target_material:
-                st.caption(target_material)
-
-        with header_col2:
-            st.metric(
-                "Precursor cost",
-                cost_text,
-            )
-
-        info_col1, info_col2, info_col3, info_col4 = (
-            st.columns(4)
-        )
-
-        info_col1.markdown(
-            f"**Elements**  \n"
-            f"{clean_text(method.get('elements'))}"
-        )
-
-        info_col2.markdown(
-            f"**Precursor**  \n"
-            f"{precursor}"
-        )
-
-        info_col3.markdown(
-            f"**Temperature**  \n"
-            f"{clean_text(method.get('temperature_C'))}"
-        )
-
-        time_text = []
-
-        if has_value(method.get("time_h")):
-            time_text.append(
-                f"{clean_text(method.get('time_h'))} h"
-            )
-
-        if has_value(method.get("time_min")):
-            time_text.append(
-                f"{clean_text(method.get('time_min'))} min"
-            )
-
-        info_col4.markdown(
-            f"**Reaction time**  \n"
-            f"{' / '.join(time_text) if time_text else 'Not reported'}"
-        )
-
-        show_inline_field(
-            "Solvent",
-            method.get("solvent"),
-        )
-
-        show_inline_field(
-            "Cost matching",
-            method.get(
-                "cost_match_quality"
-            ),
-        )
-
-        method_id = method[
-            "method_id"
-        ]
-
-        matched_evidence = evidence_df[
-            evidence_df["method_id"]
-            == method_id
-        ].copy()
-
-        with st.expander(
-            "View synthesis details",
-            expanded=False,
-        ):
-
-            if matched_evidence.empty:
-                st.warning(
-                    "No supporting evidence record was found."
-                )
-
-            for _, evidence in matched_evidence.iterrows():
-
-                entry_id = clean_text(
-                    evidence.get("entry_id")
-                )
-
-                doi = clean_text(
-                    evidence.get("doi"),
-                    default="",
-                )
-
-                st.markdown(
-                    f"#### Literature record {entry_id}"
-                )
-
-                if doi:
-                    st.caption(
-                        f"DOI: {doi}"
-                    )
-
-                overview_col1, overview_col2, overview_col3 = (
-                    st.columns(3)
-                )
-
-                overview_col1.metric(
-                    "Morphology",
-                    title_case_label(
-                        evidence.get(
-                            "morphology"
-                        )
-                    ),
-                )
-
-                overview_col2.metric(
-                    "Route",
-                    title_case_label(
-                        evidence.get(
-                            "route"
-                        )
-                    ),
-                )
-
-                overview_col3.metric(
-                    "Reported size",
-                    clean_text(
-                        evidence.get(
-                            "particle_size_nm"
-                        )
-                        or evidence.get(
-                            "diameter_nm"
-                        )
-                    ),
-                )
-
-                st.markdown("##### Reagents")
-
-                display_reagent_table(
-                    evidence.get("precursors")
-                )
-
-                reagent_col1, reagent_col2 = (
-                    st.columns(2)
-                )
-
-                with reagent_col1:
-                    st.markdown(
-                        "**Additives / stabilisers**"
-                    )
-                    display_additives(
-                        evidence.get(
-                            "additives"
-                        )
-                    )
-
-                with reagent_col2:
-                    st.markdown(
-                        "**Solvent**"
-                    )
-                    st.write(
-                        clean_text(
-                            evidence.get(
-                                "solvent"
-                            )
-                        )
-                    )
-
-                st.markdown(
-                    "##### Reaction conditions"
-                )
-
-                condition_col1, condition_col2, condition_col3 = (
-                    st.columns(3)
-                )
-
-                condition_col1.metric(
-                    "Temperature",
-                    clean_text(
-                        evidence.get(
-                            "temperature_C"
-                        )
-                    ),
-                )
-
-                reaction_time = []
-
-                if has_value(
-                    evidence.get("time_h")
-                ):
-                    reaction_time.append(
-                        f"{clean_text(evidence.get('time_h'))} h"
-                    )
-
-                if has_value(
-                    evidence.get("time_min")
-                ):
-                    reaction_time.append(
-                        f"{clean_text(evidence.get('time_min'))} min"
-                    )
-
-                condition_col2.metric(
-                    "Time",
-                    " / ".join(
-                        reaction_time
-                    )
-                    if reaction_time
-                    else "Not reported",
-                )
-
-                condition_col3.metric(
-                    "pH",
-                    clean_text(
-                        evidence.get("pH")
-                    ),
-                )
-
-                show_inline_field(
-                    "Vessel / pressure",
-                    evidence.get(
-                        "pressure_or_vessel"
-                    ),
-                )
-
-                show_inline_field(
-                    "Atmosphere",
-                    evidence.get(
-                        "atmosphere"
-                    ),
-                )
-
-                mixing_sequence = (
-                    evidence.get(
-                        "mixing_or_addition_sequence"
-                    )
-                )
-
-                if has_value(mixing_sequence):
-                    st.markdown(
-                        "##### Addition and mixing sequence"
-                    )
-                    st.write(
-                        clean_text(
-                            mixing_sequence
-                        )
-                    )
-
-                workup_present = any(
-                    has_value(
-                        evidence.get(column)
-                    )
-                    for column in [
-                        "washing",
-                        "drying_temperature_C",
-                        "calcination_temperature_C",
-                        "post_treatment",
-                    ]
-                )
-
-                if workup_present:
-                    st.markdown(
-                        "##### Isolation and post-treatment"
-                    )
-
-                    show_inline_field(
-                        "Washing / separation",
-                        evidence.get(
-                            "washing"
-                        ),
-                    )
-
-                    show_inline_field(
-                        "Drying temperature",
-                        evidence.get(
-                            "drying_temperature_C"
-                        ),
-                    )
-
-                    show_inline_field(
-                        "Calcination temperature",
-                        evidence.get(
-                            "calcination_temperature_C"
-                        ),
-                    )
-
-                    show_inline_field(
-                        "Post-treatment",
-                        evidence.get(
-                            "post_treatment"
-                        ),
-                    )
-
-                full_procedure = (
-                    evidence.get(
-                        "full_synthesis_procedure"
-                    )
-                )
-
-                st.markdown(
-                    "##### Consolidated synthesis procedure"
-                )
-
-                if has_value(full_procedure):
-                    st.info(
-                        clean_text(
-                            full_procedure
-                        )
-                    )
-                else:
-                    st.warning(
-                        "No consolidated synthesis procedure "
-                        "is available for this record."
-                    )
-
-                notes = evidence.get("notes")
-
-                if has_value(notes):
-                    st.markdown(
-                        "##### Additional notes"
-                    )
-                    st.write(
-                        clean_text(notes)
-                    )
-
-                confidence = evidence.get(
-                    "confidence"
-                )
-
-                if has_value(confidence):
-                    with st.expander(
-                        "Extraction confidence",
-                        expanded=False,
-                    ):
-                        parsed_confidence = (
-                            parse_nested(confidence)
-                        )
-
-                        if isinstance(
-                            parsed_confidence,
-                            dict,
-                        ):
-                            st.json(
-                                parsed_confidence
-                            )
-                        else:
-                            st.write(
-                                clean_text(
-                                    confidence
-                                )
-                            )
-
-
-# ============================================================
-# FOOTNOTE
-# ============================================================
-
-st.divider()
+if sort_by == "成本最低":
+    filtered = filtered.sort_values(["precursor_cost_AUD_per_g", "route"], na_position="last")
+elif sort_by == "温度最低":
+    filtered = filtered.sort_values(["_temperature", "route"], na_position="last")
+else:
+    filtered = filtered.sort_values(["route", "precursor_cost_AUD_per_g"], na_position="last")
+
+st.markdown('<div class="step-label">02 · 匹配结果</div>', unsafe_allow_html=True)
+
+metric_1, metric_2, metric_3, metric_4 = st.columns(4)
+metric_1.metric("匹配路线", len(filtered))
+metric_2.metric("目标化学式", filtered["formula"].nunique() if not filtered.empty else 0)
+metric_3.metric("最低理论成本", f"A${filtered['precursor_cost_AUD_per_g'].min():.2f}" if filtered["precursor_cost_AUD_per_g"].notna().any() else "—")
+metric_4.metric("文献记录", filtered["entry_id"].nunique() if not filtered.empty else 0)
 
 st.caption(
-    "Costs represent theoretical metal-precursor procurement costs, "
-    "not complete synthesis costs. They exclude yield losses, solvents, "
-    "additives, energy, labour, purification, equipment and waste treatment."
+    "成本口径：制备 1 g 目标相所需金属前驱体的理论采购成本（AUD）。不含产率损失、溶剂、添加剂、能源、人工、设备、纯化和废物处理。"
+)
+
+if filtered.empty:
+    st.warning("数据库中暂时没有与这些元素和形貌精确匹配的路线。可尝试其他形貌或打开“显示低可信估算”。")
+    st.stop()
+
+for rank, (_, method) in enumerate(filtered.iterrows(), start=1):
+    cost = method.get("precursor_cost_AUD_per_g")
+    confidence, confidence_note = cost_confidence(method)
+    cost_text = f"A${cost:,.2f}" if pd.notna(cost) else "待补充"
+    formula = esc(method.get("formula"))
+    route = esc(title_label(method.get("route")))
+    morphology = esc(title_label(method.get("morphology")))
+    target = esc(method.get("target_material"), "")
+
+    st.markdown(
+        f"""
+        <section class="result-card">
+          <div class="card-top">
+            <div>
+              <span class="route-pill">路线 {rank:02d} · {route}</span>
+              <h3>{formula} · {morphology}</h3>
+              <div class="card-sub">{target}</div>
+            </div>
+            <div>
+              <div class="cost">{cost_text}</div>
+              <div class="cost-label">每 1 g 目标材料 · {esc(confidence)}</div>
+            </div>
+          </div>
+          <div class="facts">
+            <div class="fact"><b>主要前驱体</b><span>{esc(method.get('precursor'))}</span></div>
+            <div class="fact"><b>反应温度</b><span>{html.escape(temperature_text(method.get('temperature_C')))}</span></div>
+            <div class="fact"><b>反应时间</b><span>{html.escape(reaction_time(method))}</span></div>
+            <div class="fact"><b>溶剂体系</b><span>{esc(method.get('solvent'))}</span></div>
+          </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    evidence = evidence_df[evidence_df["method_id"] == method["method_id"]]
+    with st.expander(f"查看路线 {rank:02d} 的完整实验步骤与成本说明"):
+        st.markdown(f"**成本说明：** {confidence_note}。当前显示单位为 `{clean(method.get('cost_unit'))}`。")
+        if evidence.empty:
+            st.info("该路线暂缺结构化文献步骤。")
+            continue
+
+        record = evidence.iloc[0]
+        detail_1, detail_2, detail_3 = st.columns(3)
+        detail_1.metric("DOI", clean(record.get("doi")))
+        detail_2.metric("pH", clean(record.get("pH")))
+        detail_3.metric("粒径", clean(record.get("particle_size_nm"), clean(record.get("diameter_nm"))))
+
+        st.markdown("#### 文献试剂与用量")
+        reagents = reagent_rows(record.get("precursors"))
+        if reagents.empty:
+            st.write(clean(record.get("precursors")))
+        else:
+            st.dataframe(reagents, width="stretch", hide_index=True)
+
+        st.markdown("#### 实验流程")
+        procedure = clean(record.get("full_synthesis_procedure"))
+        st.info(procedure)
+
+        workup = clean(record.get("washing"), "")
+        post = clean(record.get("post_treatment"), "")
+        if workup or post:
+            st.markdown("#### 分离与后处理")
+            if workup:
+                st.write(f"**清洗/分离：** {workup}")
+            if post:
+                st.write(f"**后处理：** {post}")
+
+        doi = clean(record.get("doi"), "")
+        if doi:
+            st.link_button("打开原始文献", f"https://doi.org/{doi}")
+
+st.divider()
+st.markdown(
+    '<p class="method-note">数据来自已结构化的文献实验记录。理论成本用于路线间的早期比较，不等同于实际实验预算；对于复合材料、未报告产率或计量信息不足的路线，应优先参考可信度标签。</p>',
+    unsafe_allow_html=True,
 )
