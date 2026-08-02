@@ -103,7 +103,7 @@ methods_df["precursor_cost_AUD_per_g"] = pd.to_numeric(
 NULLS = {"", "nan", "none", "null", "<na>", "not reported", "not available"}
 
 
-def clean(value: Any, default: str = "未报告") -> str:
+def clean(value: Any, default: str = "Not reported") -> str:
     if value is None:
         return default
     try:
@@ -115,7 +115,7 @@ def clean(value: Any, default: str = "未报告") -> str:
     return default if text.lower() in NULLS else text
 
 
-def esc(value: Any, default: str = "未报告") -> str:
+def esc(value: Any, default: str = "Not reported") -> str:
     return html.escape(clean(value, default))
 
 
@@ -138,7 +138,7 @@ def parse_nested(value: Any) -> Any:
 
 def title_label(value: Any) -> str:
     text = clean(value)
-    return text.replace("_", " ").title() if text != "未报告" else text
+    return text.replace("_", " ").title() if text != "Not reported" else text
 
 
 def reaction_time(row: pd.Series) -> str:
@@ -149,12 +149,12 @@ def reaction_time(row: pd.Series) -> str:
         parts.append(hours if any(c.isalpha() for c in hours) else f"{hours} h")
     if minutes:
         parts.append(minutes if any(c.isalpha() for c in minutes) else f"{minutes} min")
-    return " / ".join(parts) or "未报告"
+    return " / ".join(parts) or "Not reported"
 
 
 def temperature_text(value: Any) -> str:
     text = clean(value)
-    if text == "未报告" or "°" in text or any(char.isalpha() for char in text):
+    if text == "Not reported" or "°" in text or any(char.isalpha() for char in text):
         return text
     return f"{text} °C"
 
@@ -162,12 +162,12 @@ def temperature_text(value: Any) -> str:
 def cost_confidence(row: pd.Series) -> tuple[str, str]:
     quality = clean(row.get("cost_match_quality"), "").lower()
     if "formula" in quality:
-        return "较高可信度", "按目标化学式与路线匹配"
+        return "High confidence", "Matched by target formula and synthesis route"
     if "morphology+route" in quality:
-        return "中等可信度", "按文献、形貌与路线匹配"
+        return "Medium confidence", "Matched by literature record, morphology and route"
     if quality and quality != "unmatched":
-        return "参考估算", "成本来自较宽松的原料匹配"
-    return "资料不足", "现有记录不足以可靠估算"
+        return "Indicative estimate", "Cost uses a broader precursor match"
+    return "Insufficient data", "The record is insufficient for a reliable estimate"
 
 
 def reagent_rows(value: Any) -> pd.DataFrame:
@@ -179,9 +179,9 @@ def reagent_rows(value: Any) -> pd.DataFrame:
         if isinstance(item, dict):
             rows.append(
                 {
-                    "试剂": clean(item.get("name"), ""),
-                    "化学式": clean(item.get("formula"), ""),
-                    "文献用量": clean(item.get("amount"), ""),
+                    "Reagent": clean(item.get("name"), ""),
+                    "Formula": clean(item.get("formula"), ""),
+                    "Reported amount": clean(item.get("amount"), ""),
                 }
             )
     return pd.DataFrame(rows).replace("", pd.NA).dropna(axis=1, how="all")
@@ -192,13 +192,13 @@ st.markdown(
     <section class="hero">
       <div class="eyebrow">Literature-derived synthesis intelligence</div>
       <h1>Synthesis Compass</h1>
-      <p>从元素与目标形貌出发，找到可追溯的合成路线，并比较制备 1 g 目标材料所需金属前驱体的理论采购成本。</p>
+      <p>Start with elemental composition and target morphology, then compare traceable synthesis routes and their theoretical metal-precursor cost for 1 g of target material.</p>
     </section>
     """,
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="step-label">01 · 定义目标材料</div>', unsafe_allow_html=True)
+st.markdown('<div class="step-label">01 · Define the target</div>', unsafe_allow_html=True)
 
 all_elements = sorted(
     {element for value in methods_df["elements"].dropna() for element in elements_of(value)}
@@ -208,16 +208,16 @@ all_morphologies = sorted(methods_df["morphology"].dropna().astype(str).unique()
 selector_1, selector_2 = st.columns(2)
 with selector_1:
     selected_elements = st.multiselect(
-        "目标元素",
+        "Target elements",
         all_elements,
-        placeholder="例如：Cu、O",
-        help="选择目标材料包含的全部元素。",
+        placeholder="For example: Cu, O",
+        help="Select every element contained in the target material.",
     )
 with selector_2:
     selected_morphology = st.selectbox(
-        "目标形貌",
-        ["请选择"] + all_morphologies,
-        format_func=lambda x: "请选择形貌" if x == "请选择" else title_label(x),
+        "Target morphology",
+        ["Select"] + all_morphologies,
+        format_func=lambda x: "Select morphology" if x == "Select" else title_label(x),
     )
 
 candidate = methods_df.copy()
@@ -229,25 +229,25 @@ formula_options = sorted(candidate["formula"].dropna().astype(str).unique(), key
 advanced_1, advanced_2, advanced_3 = st.columns([1.2, 1.2, .8])
 with advanced_1:
     selected_formula = st.selectbox(
-        "目标化学式（可选）", ["全部匹配"] + formula_options,
-        help="元素相同但化学计量不同的材料，可用化学式进一步区分。",
+        "Target formula (optional)", ["All matching formulas"] + formula_options,
+        help="Use the formula to distinguish materials with the same elements but different stoichiometry.",
     )
 with advanced_2:
-    sort_by = st.selectbox("结果排序", ["成本最低", "温度最低", "路线名称"])
+    sort_by = st.selectbox("Sort results", ["Lowest cost", "Lowest temperature", "Route name"])
 with advanced_3:
-    show_reference_estimates = st.toggle("显示低可信估算", value=True)
+    show_reference_estimates = st.toggle("Show indicative estimates", value=True)
 
-ready = bool(selected_elements) and selected_morphology != "请选择"
+ready = bool(selected_elements) and selected_morphology != "Select"
 
 if not ready:
     st.markdown(
-        '<div class="empty-state"><strong>先选择元素和形貌</strong><br><br>我们只会展示与你目标精确匹配的材料，避免一打开就出现几十条混乱结果。</div>',
+        '<div class="empty-state"><strong>Select elements and morphology to begin</strong><br><br>Only materials that exactly match your target will be shown, keeping the results focused and comparable.</div>',
         unsafe_allow_html=True,
     )
     st.stop()
 
 filtered = candidate[candidate["morphology"].astype(str) == selected_morphology].copy()
-if selected_formula != "全部匹配":
+if selected_formula != "All matching formulas":
     filtered = filtered[filtered["formula"].astype(str) == selected_formula]
 if not show_reference_estimates:
     filtered = filtered[filtered["cost_match_quality"].astype(str).str.contains("formula", case=False, na=False)]
@@ -262,33 +262,33 @@ filtered = filtered.drop_duplicates(subset=dedupe_columns)
 filtered["_temperature"] = pd.to_numeric(
     filtered["temperature_C"].astype(str).str.extract(r"([-+]?\d*\.?\d+)")[0], errors="coerce"
 )
-if sort_by == "成本最低":
+if sort_by == "Lowest cost":
     filtered = filtered.sort_values(["precursor_cost_AUD_per_g", "route"], na_position="last")
-elif sort_by == "温度最低":
+elif sort_by == "Lowest temperature":
     filtered = filtered.sort_values(["_temperature", "route"], na_position="last")
 else:
     filtered = filtered.sort_values(["route", "precursor_cost_AUD_per_g"], na_position="last")
 
-st.markdown('<div class="step-label">02 · 匹配结果</div>', unsafe_allow_html=True)
+st.markdown('<div class="step-label">02 · Matching routes</div>', unsafe_allow_html=True)
 
 metric_1, metric_2, metric_3, metric_4 = st.columns(4)
-metric_1.metric("匹配路线", len(filtered))
-metric_2.metric("目标化学式", filtered["formula"].nunique() if not filtered.empty else 0)
-metric_3.metric("最低理论成本", f"A${filtered['precursor_cost_AUD_per_g'].min():.2f}" if filtered["precursor_cost_AUD_per_g"].notna().any() else "—")
-metric_4.metric("文献记录", filtered["entry_id"].nunique() if not filtered.empty else 0)
+metric_1.metric("Matching routes", len(filtered))
+metric_2.metric("Target formulas", filtered["formula"].nunique() if not filtered.empty else 0)
+metric_3.metric("Lowest theoretical cost", f"A${filtered['precursor_cost_AUD_per_g'].min():.2f}" if filtered["precursor_cost_AUD_per_g"].notna().any() else "—")
+metric_4.metric("Literature records", filtered["entry_id"].nunique() if not filtered.empty else 0)
 
 st.caption(
-    "成本口径：制备 1 g 目标相所需金属前驱体的理论采购成本（AUD）。不含产率损失、溶剂、添加剂、能源、人工、设备、纯化和废物处理。"
+    "Cost basis: theoretical procurement cost (AUD) of the metal precursor required for 1 g of target phase. Yield losses, solvents, additives, energy, labour, equipment, purification and waste treatment are excluded."
 )
 
 if filtered.empty:
-    st.warning("数据库中暂时没有与这些元素和形貌精确匹配的路线。可尝试其他形貌或打开“显示低可信估算”。")
+    st.warning("No route currently matches this exact elemental composition and morphology. Try another morphology or enable indicative estimates.")
     st.stop()
 
 for rank, (_, method) in enumerate(filtered.iterrows(), start=1):
     cost = method.get("precursor_cost_AUD_per_g")
     confidence, confidence_note = cost_confidence(method)
-    cost_text = f"A${cost:,.2f}" if pd.notna(cost) else "待补充"
+    cost_text = f"A${cost:,.2f}" if pd.notna(cost) else "Pending"
     formula = esc(method.get("formula"))
     route = esc(title_label(method.get("route")))
     morphology = esc(title_label(method.get("morphology")))
@@ -299,20 +299,20 @@ for rank, (_, method) in enumerate(filtered.iterrows(), start=1):
         <section class="result-card">
           <div class="card-top">
             <div>
-              <span class="route-pill">路线 {rank:02d} · {route}</span>
+              <span class="route-pill">Route {rank:02d} · {route}</span>
               <h3>{formula} · {morphology}</h3>
               <div class="card-sub">{target}</div>
             </div>
             <div>
               <div class="cost">{cost_text}</div>
-              <div class="cost-label">每 1 g 目标材料 · {esc(confidence)}</div>
+              <div class="cost-label">per 1 g target · {esc(confidence)}</div>
             </div>
           </div>
           <div class="facts">
-            <div class="fact"><b>主要前驱体</b><span>{esc(method.get('precursor'))}</span></div>
-            <div class="fact"><b>反应温度</b><span>{html.escape(temperature_text(method.get('temperature_C')))}</span></div>
-            <div class="fact"><b>反应时间</b><span>{html.escape(reaction_time(method))}</span></div>
-            <div class="fact"><b>溶剂体系</b><span>{esc(method.get('solvent'))}</span></div>
+            <div class="fact"><b>Primary precursor</b><span>{esc(method.get('precursor'))}</span></div>
+            <div class="fact"><b>Temperature</b><span>{html.escape(temperature_text(method.get('temperature_C')))}</span></div>
+            <div class="fact"><b>Reaction time</b><span>{html.escape(reaction_time(method))}</span></div>
+            <div class="fact"><b>Solvent system</b><span>{esc(method.get('solvent'))}</span></div>
           </div>
         </section>
         """,
@@ -320,44 +320,44 @@ for rank, (_, method) in enumerate(filtered.iterrows(), start=1):
     )
 
     evidence = evidence_df[evidence_df["method_id"] == method["method_id"]]
-    with st.expander(f"查看路线 {rank:02d} 的完整实验步骤与成本说明"):
-        st.markdown(f"**成本说明：** {confidence_note}。当前显示单位为 `{clean(method.get('cost_unit'))}`。")
+    with st.expander(f"View route {rank:02d}: full procedure and cost basis"):
+        st.markdown(f"**Cost note:** {confidence_note}. The source unit is `{clean(method.get('cost_unit'))}`.")
         if evidence.empty:
-            st.info("该路线暂缺结构化文献步骤。")
+            st.info("No structured literature procedure is currently available for this route.")
             continue
 
         record = evidence.iloc[0]
         detail_1, detail_2, detail_3 = st.columns(3)
         detail_1.metric("DOI", clean(record.get("doi")))
         detail_2.metric("pH", clean(record.get("pH")))
-        detail_3.metric("粒径", clean(record.get("particle_size_nm"), clean(record.get("diameter_nm"))))
+        detail_3.metric("Particle size", clean(record.get("particle_size_nm"), clean(record.get("diameter_nm"))))
 
-        st.markdown("#### 文献试剂与用量")
+        st.markdown("#### Reported reagents and quantities")
         reagents = reagent_rows(record.get("precursors"))
         if reagents.empty:
             st.write(clean(record.get("precursors")))
         else:
             st.dataframe(reagents, width="stretch", hide_index=True)
 
-        st.markdown("#### 实验流程")
+        st.markdown("#### Experimental procedure")
         procedure = clean(record.get("full_synthesis_procedure"))
         st.info(procedure)
 
         workup = clean(record.get("washing"), "")
         post = clean(record.get("post_treatment"), "")
         if workup or post:
-            st.markdown("#### 分离与后处理")
+            st.markdown("#### Isolation and post-treatment")
             if workup:
-                st.write(f"**清洗/分离：** {workup}")
+                st.write(f"**Washing / separation:** {workup}")
             if post:
-                st.write(f"**后处理：** {post}")
+                st.write(f"**Post-treatment:** {post}")
 
         doi = clean(record.get("doi"), "")
         if doi:
-            st.link_button("打开原始文献", f"https://doi.org/{doi}")
+            st.link_button("Open source publication", f"https://doi.org/{doi}")
 
 st.divider()
 st.markdown(
-    '<p class="method-note">数据来自已结构化的文献实验记录。理论成本用于路线间的早期比较，不等同于实际实验预算；对于复合材料、未报告产率或计量信息不足的路线，应优先参考可信度标签。</p>',
+    '<p class="method-note">Data are derived from structured literature records. Theoretical costs support early route comparison and are not laboratory budgets. For composites, unreported yields or incomplete stoichiometry, use the confidence label when interpreting the estimate.</p>',
     unsafe_allow_html=True,
 )
