@@ -8,12 +8,20 @@ import gzip
 import hashlib
 import json
 import re
+import base64
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT.parent / "ceder_raw"
 OUT = ROOT / "data" / "database" / "ceder_methods.csv.gz"
+INDEX_OUT = ROOT / "data" / "database" / "ceder_index.csv.gz"
+INDEX_FIELDS = [
+    "method_id", "source_dataset", "doi", "mp_id", "formula", "elements",
+    "n_elements", "target_material", "morphology", "morphology_confidence",
+    "route", "precursor", "solvent", "temperature_C", "time_h", "atmosphere",
+    "cost_AUD_per_g", "cost_confidence",
+]
 
 MORPHOLOGIES = [
     ("nanoflower", r"\bnano[- ]?flowers?\b"),
@@ -206,7 +214,25 @@ def main() -> None:
                 seen.add(row["method_id"])
                 writer.writerow(row)
                 written += 1
+    with gzip.open(OUT, "rt", encoding="utf-8", newline="") as source, gzip.open(
+        INDEX_OUT, "wt", encoding="utf-8", newline="", compresslevel=9
+    ) as target:
+        reader = csv.DictReader(source)
+        writer = csv.DictWriter(target, fieldnames=INDEX_FIELDS)
+        writer.writeheader()
+        for row in reader:
+            writer.writerow({field: row.get(field, "") for field in INDEX_FIELDS})
+
+    for old_part in INDEX_OUT.parent.glob("ceder_index.b64.*"):
+        old_part.unlink()
+    encoded = base64.b64encode(INDEX_OUT.read_bytes()).decode("ascii")
+    part_size = 600_000
+    for part_number, offset in enumerate(range(0, len(encoded), part_size)):
+        (INDEX_OUT.parent / f"ceder_index.b64.{part_number:02d}").write_text(
+            encoded[offset : offset + part_size], encoding="ascii"
+        )
     print(f"Wrote {written:,} unique methods to {OUT} ({OUT.stat().st_size / 1_000_000:.1f} MB)")
+    print(f"Web index: {INDEX_OUT.stat().st_size / 1_000_000:.1f} MB in {part_number + 1} text parts")
 
 
 if __name__ == "__main__":

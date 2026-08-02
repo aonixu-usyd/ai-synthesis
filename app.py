@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import ast
+import base64
 import html
+import io
 import json
 from pathlib import Path
 from typing import Any
@@ -92,9 +94,15 @@ def load_database() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     materials = pd.read_csv(DATABASE_DIR / "materials.csv")
     methods = pd.read_csv(DATABASE_DIR / "methods.csv")
     evidence = pd.read_csv(DATABASE_DIR / "evidence.csv")
-    ceder_path = DATABASE_DIR / "ceder_methods.csv.gz"
-    if ceder_path.exists():
-        ceder = pd.read_csv(ceder_path, compression="gzip", low_memory=False)
+    ceder_path = DATABASE_DIR / "ceder_index.csv.gz"
+    ceder_parts = sorted(DATABASE_DIR.glob("ceder_index.b64.*"))
+    if ceder_path.exists() or ceder_parts:
+        if ceder_path.exists():
+            ceder_source = ceder_path
+        else:
+            encoded = "".join(part.read_text(encoding="ascii") for part in ceder_parts)
+            ceder_source = io.BytesIO(base64.b64decode(encoded))
+        ceder = pd.read_csv(ceder_source, compression="gzip", low_memory=False)
         ceder_methods = ceder.rename(columns={"cost_AUD_per_g": "precursor_cost_AUD_per_g"}).copy()
         ceder_methods["cost_unit"] = "AUD/g target"
         ceder_methods["cost_match_quality"] = "unmatched"
@@ -108,13 +116,13 @@ def load_database() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         ceder_evidence = pd.DataFrame({
             "method_id": ceder["method_id"],
             "doi": ceder["doi"],
-            "precursors": ceder["precursors"],
-            "full_synthesis_procedure": ceder["procedure"],
+            "precursors": ceder["precursor"],
+            "full_synthesis_procedure": "Open the source publication for the extracted procedure and full experimental context.",
             "pH": pd.NA,
             "particle_size_nm": pd.NA,
             "diameter_nm": pd.NA,
             "washing": pd.NA,
-            "post_treatment": ceder["reaction_string"],
+            "post_treatment": pd.NA,
         })
         evidence = pd.concat([evidence, ceder_evidence], ignore_index=True, sort=False)
     return materials, methods, evidence
