@@ -20,6 +20,7 @@ INDEX_OUT = ROOT / "data" / "database" / "ceder_index.csv.gz"
 INDEX_FIELDS = [
     "method_id", "source_dataset", "doi", "mp_id", "formula", "elements",
     "n_elements", "target_material", "morphology", "morphology_confidence",
+    "morphology_evidence",
     "route", "precursor", "solvent", "temperature_C", "time_h", "atmosphere",
     "cost_AUD_per_g", "cost_confidence", "cost_breakdown", "cost_source",
     "cost_price_date",
@@ -51,7 +52,7 @@ Cn Nh Fl Mc Lv Ts Og
 FIELDS = [
     "method_id", "source_dataset", "source_index", "doi", "mp_id", "formula",
     "elements", "n_elements", "target_material", "morphology",
-    "morphology_confidence", "route", "precursor", "precursors", "solvent",
+    "morphology_confidence", "morphology_evidence", "route", "precursor", "precursors", "solvent",
     "temperature_C", "time_h", "atmosphere", "reaction_string", "procedure",
     "cost_AUD_per_g", "cost_confidence", "cost_breakdown", "cost_source",
     "cost_price_date",
@@ -238,14 +239,19 @@ def summarize_conditions(operations: list[dict]) -> tuple[str, str, str, str, st
     )
 
 
-def morphology(record: dict) -> tuple[str, str]:
+def morphology(record: dict) -> tuple[str, str, str]:
     target = record.get("target") or {}
     material = text(target.get("material_string"))
-    corpus = f"{material} {paragraph(record)}".lower()
     for label, pattern in MORPHOLOGIES:
-        if re.search(pattern, corpus, flags=re.I):
-            return label, "explicit text mention"
-    return "Unspecified", "not reported in extracted text"
+        match = re.search(pattern, material, flags=re.I)
+        if match:
+            return label, "high — target name", match.group(0)
+    procedure_text = paragraph(record)
+    for label, pattern in MORPHOLOGIES:
+        match = re.search(pattern, procedure_text, flags=re.I)
+        if match:
+            return label, "medium — procedure text", match.group(0)
+    return "Unspecified", "not reported in extracted text", ""
 
 
 def convert(dataset: str, index: int, record: dict) -> dict:
@@ -256,7 +262,7 @@ def convert(dataset: str, index: int, record: dict) -> dict:
     precursor_names = [text(p.get("material_string") or p.get("material_formula")) for p in precursors]
     precursor_names = [p for p in precursor_names if p]
     temperature, hours, atmosphere, solvent, steps = summarize_conditions(record.get("operations") or [])
-    morph, morph_conf = morphology(record)
+    morph, morph_conf, morph_evidence = morphology(record)
     route = "solid-state" if dataset == "Ceder solid-state" else text(record.get("type")) or "solution-based"
     cost, cost_confidence, cost_breakdown, cost_source, cost_price_date = theoretical_cost(target, precursors)
     signature = "|".join([dataset, text(record.get("doi")), formula, text(record.get("reaction_string")), route, steps])
@@ -274,6 +280,7 @@ def convert(dataset: str, index: int, record: dict) -> dict:
         "target_material": text(target.get("material_string")) or formula,
         "morphology": morph,
         "morphology_confidence": morph_conf,
+        "morphology_evidence": morph_evidence,
         "route": route,
         "precursor": "; ".join(precursor_names),
         "precursors": json.dumps([
