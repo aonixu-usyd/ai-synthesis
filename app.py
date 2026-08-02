@@ -406,6 +406,11 @@ for rank, (_, method) in enumerate(displayed.iterrows(), start=1):
     evidence = evidence_df[evidence_df["method_id"] == method["method_id"]]
     with st.expander(f"View route {rank:02d}: full procedure and cost basis"):
         st.markdown(f"**Cost note:** {confidence_note}. The source unit is `{clean(method.get('cost_unit'))}`.")
+        morphology_quality = clean(method.get("morphology_confidence"), "")
+        morphology_evidence = clean(method.get("morphology_evidence"), "")
+        if morphology_quality:
+            evidence_suffix = f"; matched term: “{morphology_evidence}”" if morphology_evidence else ""
+            st.write(f"**Morphology quality:** {morphology_quality}{evidence_suffix}")
         breakdown = clean(method.get("cost_breakdown"), "")
         if breakdown:
             st.write(f"**Calculation:** {breakdown}")
