@@ -87,10 +87,12 @@ st.markdown(
 
 
 DATABASE_DIR = Path("data/database")
+DATABASE_VERSION = "2026-08-02-cost-morphology-v2"
 
 
 @st.cache_data
-def load_database() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_database(cache_version: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    _ = cache_version  # Explicit cache key for deployed database revisions.
     materials = pd.read_csv(DATABASE_DIR / "materials.csv")
     methods = pd.read_csv(DATABASE_DIR / "methods.csv")
     evidence = pd.read_csv(DATABASE_DIR / "evidence.csv")
@@ -128,7 +130,7 @@ def load_database() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     return materials, methods, evidence
 
 
-materials_df, methods_df, evidence_df = load_database()
+materials_df, methods_df, evidence_df = load_database(DATABASE_VERSION)
 methods_df["precursor_cost_AUD_per_g"] = pd.to_numeric(
     methods_df["precursor_cost_AUD_per_g"], errors="coerce"
 )
